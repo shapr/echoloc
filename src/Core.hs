@@ -1,6 +1,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Core (main) where
 
@@ -136,19 +137,28 @@ main = do
                 SDL.present renderer
                 let listenPos =
                         if
-                            | keyMap SDL.ScancodeUp -> (\(Vertex3 a b c) -> Vertex3 (a + 0.1) b c)
-                            | keyMap SDL.ScancodeDown -> (\(Vertex3 a b c) -> Vertex3 (a - 0.1) b c)
-                            | keyMap SDL.ScancodeLeft -> (\(Vertex3 a b c) -> Vertex3 a (b - 0.1) c)
-                            | keyMap SDL.ScancodeRight -> (\(Vertex3 a b c) -> Vertex3 a (b + 0.1) c)
+                            | keyMap SDL.ScancodeUp -> (\(Vertex3 a b c) -> Vertex3 a (b - 0.1) c)
+                            | keyMap SDL.ScancodeDown -> (\(Vertex3 a b c) -> Vertex3 a (b + 0.1) c)
                             | keyMap SDL.ScancodeZ -> const $ Vertex3 0 0 0
                             | otherwise -> id
                 listenerPosition $~ listenPos
+                --  (Vector3 0 0 (-1), Vector3 0 1 0)
+
+                let listenOrient :: (Vector3 ALfloat, Vector3 ALfloat) -> (Vector3 ALfloat, Vector3 ALfloat) =
+                        if
+                            | keyMap SDL.ScancodeLeft -> \(Vector3 a b c, v2) -> (Vector3 a (b - 0.1) c, v2)
+                            | keyMap SDL.ScancodeRight -> \(Vector3 a b c, v2) -> (Vector3 a (b + 0.1) c, v2)
+                            | keyMap SDL.ScancodeX -> const (Vector3 0 0 (-1), Vector3 0 1 0)
+                            | otherwise -> id
+                orientation $~ listenOrient
                 let pos = Vertex3 (cos theta * 5) 0 (sin theta * 5)
                 sourcePosition source $= pos
                 state <- get (sourceState source)
                 sleep 0.01
                 lpos <- get listenerPosition
+                lorient <- get orientation
                 hPrint stderr lpos
+                hPrint stderr lorient
                 unless quit (loop (theta + (pi / 60)))
 
         -- end SDL loop
