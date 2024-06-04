@@ -3,7 +3,7 @@
 
   inputs = {
     # Nix Inputs
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-23.11";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-24.05";
   };
 
   outputs = {
@@ -41,14 +41,17 @@
           ];
           buildInputs = with pkgs;
             [
-              hsPkgs.haskell-language-server
-              haskellPackages.cabal-install
+              SDL2
               cabal2nix
-              haskellPackages.ghcid
-              haskellPackages.fourmolu
-              haskellPackages.cabal-fmt
-              haskellPackages.OpenAL
               haskellPackages.ALUT
+              haskellPackages.OpenAL
+              haskellPackages.network
+              haskellPackages.cabal-fmt
+              haskellPackages.cabal-install
+              haskellPackages.fourmolu
+              haskellPackages.ghcid
+              hsPkgs.haskell-language-server
+              pkg-config
             ]
             ++ (builtins.attrValues (import ./scripts.nix {s = pkgs.writeShellScriptBin;}));
         });

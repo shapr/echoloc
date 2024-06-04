@@ -42,6 +42,10 @@ common common-opts
     , text
     , foldl
     , safe-exceptions
+    -- fun
+    , sdl2
+    , OpenAL
+    , ALUT
 
   default-language: Haskell2010
 
@@ -62,27 +66,3 @@ executable echoloc
   hs-source-dirs:
       app
   build-depends: echoloc
-               , OpenAL
-               , ALUT
-
-test-suite echoloc-tests
-  import: common-opts
-  type: exitcode-stdio-1.0
-  hs-source-dirs: test
-
-  ghc-options:
-    -Wall -threaded -rtsopts -with-rtsopts=-N -fdefer-typed-holes -O0
-
-  main-is: Main.hs
-
-  -- cabal-fmt: expand test -Main
-  other-modules:
-
-  build-depends:
-    , echoloc
-    , hedgehog
-    , hspec
-    , hspec-core
-    , hspec-discover
-    , hspec-expectations
-    , hspec-hedgehog

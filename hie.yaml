@@ -2,7 +2,5 @@ cradle:
   cabal:
     - path: "./src"
       component: "lib:echoloc"
-    - path: "./test"
-      component: "test:echoloc-tests"
     - path: "./app"
       component: "exe:echoloc"
