@@ -57,25 +57,28 @@ main :: IO ()
 main = do
     -- Initialise ALUT and eat any ALUT-specific commandline flags.
     withProgNameAndArgs runALUT $ \progName args -> do
-        -- Check for correct usage.
-        unless (length args == 1) $ do
-            hPutStrLn stderr ("usage: " ++ progName ++ " <fileName>")
-            exitFailure
-
-        -- If everything is OK, play the sound file and exit when finished.
-        let filename = head args
-
         -- Create an AL buffer from the given sound file.
-        buf <- createBuffer (File filename)
+        slamBuf <- createBuffer (File "slam.wav")
+        slamSource <- genObjectName
+        buffer slamSource $= Just slamBuf
+
+        stepBuf <- createBuffer (File "stepstep.wav")
+        stepSource <- genObjectName
+        buffer stepSource $= Just stepBuf
+
+        huntingBuf <- createBuffer (File "hunting.wav")
+        huntingSource <- genObjectName
+        buffer huntingSource $= Just huntingBuf
+
+        attackBuf <- createBuffer (File "attack.wav")
+        attackSource <- genObjectName
+        buffer attackSource $= Just attackBuf
 
         -- Generate a single source, attach the buffer to it and start playing.
         source <- genObjectName
 
-        buffer source $= Just buf
-
-        -- listenerPosition $= Vertex3 0 0 0 -- wow this works
-
-        play [source]
+        -- the monster is hunting you!
+        play [huntingSource]
 
         -- Normally nothing should go wrong above, but one never knows...
         errs <- get alErrors
@@ -115,8 +118,10 @@ main = do
         leftTexture <- loadTexture renderer "left.bmp"
         rightTexture <- loadTexture renderer "right.bmp"
 
+        let maxDistance = 25
+
         --  begin SDL loop
-        let loop theta = do
+        let loop theta degrees = do
                 events <- map SDL.eventPayload <$> SDL.pollEvents
                 let quit = SDL.QuitEvent `elem` events
 
@@ -137,12 +142,11 @@ main = do
                 SDL.present renderer
                 let listenPos =
                         if
-                            | keyMap SDL.ScancodeUp -> (\(Vertex3 a b c) -> Vertex3 a (b - 0.1) c)
-                            | keyMap SDL.ScancodeDown -> (\(Vertex3 a b c) -> Vertex3 a (b + 0.1) c)
+                            | keyMap SDL.ScancodeUp -> (\(Vertex3 a b c) -> Vertex3 a (b - 0.1) c) -- move forward
+                            | keyMap SDL.ScancodeDown -> (\(Vertex3 a b c) -> Vertex3 a (b + 0.1) c) -- move backward
                             | keyMap SDL.ScancodeZ -> const $ Vertex3 0 0 0
                             | otherwise -> id
                 listenerPosition $~ listenPos
-                --  (Vector3 0 0 (-1), Vector3 0 1 0)
 
                 let degrees' =
                         if
@@ -150,7 +154,7 @@ main = do
                             | keyMap SDL.ScancodeRight -> degrees + 5
                             | keyMap SDL.ScancodeX -> 0
                             | otherwise -> degrees
-
+                --  default listener orientation is (Vector3 0 0 (-1), Vector3 0 1 0)
                 orientation $~ \(_, v2) -> (degreesToOrientation degrees', v2)
                 let pos = Vertex3 (cos theta * 5) 0 (sin theta * 5)
                 sourcePosition source $= pos
@@ -168,9 +172,21 @@ main = do
         SDL.destroyWindow window
         SDL.quit
 
+data GameState = GS
+    { monsterLocation :: Vertex3 ALfloat -- where's the monster?
+    , playerDegrees :: Int -- zero is true north, 180 or -180 is true south
+    }
+    deriving (Eq, Ord, Show)
+
 -- | assume "north" is zero degrees
 degreesToOrientation :: Int -> Vector3 ALfloat
 degreesToOrientation d = Vector3 x 0 z
   where
     x = sin (fromIntegral d * 2 * pi / 360)
     z = cos (fromIntegral d * 2 * pi / 360)
+
+{-
+              state <- get (sourceState source)
+            when (state == Playing) $
+                waitWhilePlaying (theta + (pi / 60))
+-}
