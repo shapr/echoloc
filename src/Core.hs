@@ -144,25 +144,33 @@ main = do
                 listenerPosition $~ listenPos
                 --  (Vector3 0 0 (-1), Vector3 0 1 0)
 
-                let listenOrient :: (Vector3 ALfloat, Vector3 ALfloat) -> (Vector3 ALfloat, Vector3 ALfloat) =
+                let degrees' =
                         if
-                            | keyMap SDL.ScancodeLeft -> \(Vector3 a b c, v2) -> (Vector3 a (b - 0.1) c, v2)
-                            | keyMap SDL.ScancodeRight -> \(Vector3 a b c, v2) -> (Vector3 a (b + 0.1) c, v2)
-                            | keyMap SDL.ScancodeX -> const (Vector3 0 0 (-1), Vector3 0 1 0)
-                            | otherwise -> id
-                orientation $~ listenOrient
+                            | keyMap SDL.ScancodeLeft -> degrees - 5
+                            | keyMap SDL.ScancodeRight -> degrees + 5
+                            | keyMap SDL.ScancodeX -> 0
+                            | otherwise -> degrees
+
+                orientation $~ \(_, v2) -> (degreesToOrientation degrees', v2)
                 let pos = Vertex3 (cos theta * 5) 0 (sin theta * 5)
                 sourcePosition source $= pos
                 state <- get (sourceState source)
                 sleep 0.01
                 lpos <- get listenerPosition
                 lorient <- get orientation
-                hPrint stderr lpos
-                hPrint stderr lorient
-                unless quit (loop (theta + (pi / 60)))
+                hPrint stderr $ "where are you? " <> show lpos
+                hPrint stderr $ "looking in which direction?" <> show lorient
+                unless quit (loop (theta + (pi / 60)) degrees')
 
         -- end SDL loop
-        loop 0
+        loop 0 0
         -- clean up SDL
         SDL.destroyWindow window
         SDL.quit
+
+-- | assume "north" is zero degrees
+degreesToOrientation :: Int -> Vector3 ALfloat
+degreesToOrientation d = Vector3 x 0 z
+  where
+    x = sin (fromIntegral d * 2 * pi / 360)
+    z = cos (fromIntegral d * 2 * pi / 360)
