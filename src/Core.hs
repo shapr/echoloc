@@ -118,10 +118,10 @@ main = do
         leftTexture <- loadTexture renderer "left.bmp"
         rightTexture <- loadTexture renderer "right.bmp"
 
-        let maxDistance = 25
+        let roomRadius = 25
 
         --  begin SDL loop
-        let loop theta degrees = do
+        let loop gameState = do
                 events <- map SDL.eventPayload <$> SDL.pollEvents
                 let quit = SDL.QuitEvent `elem` events
 
@@ -140,53 +140,80 @@ main = do
                 renderTexture renderer texture 0 Nothing Nothing Nothing Nothing
 
                 SDL.present renderer
-                let listenPos =
+                lpos <- get listenerPosition
+
+                let listenPos :: V2 ALfloat =
                         if
-                            | keyMap SDL.ScancodeUp -> (\(Vertex3 a b c) -> Vertex3 a (b - 0.1) c) -- move forward
-                            | keyMap SDL.ScancodeDown -> (\(Vertex3 a b c) -> Vertex3 a (b + 0.1) c) -- move backward
-                            | keyMap SDL.ScancodeZ -> const $ Vertex3 0 0 0
-                            | otherwise -> id
-                listenerPosition $~ listenPos
+                            | keyMap SDL.ScancodeUp -> newLocation 0.1 (degreesToOrientation' $ getPlayerDegrees gameState) (getPlayerPosition gameState)
+                            | keyMap SDL.ScancodeDown -> newLocation (negate 0.1) (degreesToOrientation' $ getPlayerDegrees gameState) (getPlayerPosition gameState)
+                            | keyMap SDL.ScancodeZ -> (V2 0 0)
+                            | otherwise -> (getPlayerPosition gameState)
+                listenerPosition $= v2ToVertex3 listenPos
 
                 let degrees' =
                         if
-                            | keyMap SDL.ScancodeLeft -> degrees - 5
-                            | keyMap SDL.ScancodeRight -> degrees + 5
+                            | keyMap SDL.ScancodeLeft -> getPlayerDegrees gameState - 5
+                            | keyMap SDL.ScancodeRight -> getPlayerDegrees gameState + 5
                             | keyMap SDL.ScancodeX -> 0
-                            | otherwise -> degrees
+                            | otherwise -> getPlayerDegrees gameState
+                let updatedGameState = GS listenPos (getMonsterPosition gameState) degrees'
                 --  default listener orientation is (Vector3 0 0 (-1), Vector3 0 1 0)
                 orientation $~ \(_, v2) -> (degreesToOrientation degrees', v2)
-                let pos = Vertex3 (cos theta * 5) 0 (sin theta * 5)
-                sourcePosition source $= pos
                 state <- get (sourceState source)
-                sleep 0.01
-                lpos <- get listenerPosition
+                sleep 0.01 -- 10 ms, or 100 frames per second
                 lorient <- get orientation
                 hPrint stderr $ "where are you? " <> show lpos
                 hPrint stderr $ "looking in which direction?" <> show lorient
-                unless quit (loop (theta + (pi / 60)) degrees')
+                unless quit (loop updatedGameState)
 
         -- end SDL loop
-        loop 0 0
+        let defaultGameState = GS (V2 0 0) (V2 (0 - roomRadius) 0) 0
+        loop defaultGameState
         -- clean up SDL
         SDL.destroyWindow window
         SDL.quit
 
+-- X and Y only! life is hard enough already
 data GameState = GS
-    { monsterLocation :: Vertex3 ALfloat -- where's the monster?
-    , playerDegrees :: Int -- zero is true north, 180 or -180 is true south
+    { getPlayerPosition :: V2 ALfloat
+    , getMonsterPosition :: V2 ALfloat -- where's the monster?
+    , getPlayerDegrees :: Int -- zero is true north, 180 or -180 is true south
     }
     deriving (Eq, Ord, Show)
 
--- | assume "north" is zero degrees
+v2ToVertex3 :: V2 ALfloat -> Vertex3 ALfloat
+v2ToVertex3 (V2 x z) = Vertex3 x 0 (negate z) -- XXX axis flipped?
+
+v2ToVector3 :: V2 ALfloat -> Vector3 ALfloat
+v2ToVector3 (V2 x z) = Vector3 x 0 (negate z) -- XXX axis flipped?
+
+vertex3ToV2 :: Vertex3 ALfloat -> V2 ALfloat
+vertex3ToV2 (Vertex3 x y z) = V2 x z
+
+degreesToOrientation' :: Int -> V2 ALfloat
+degreesToOrientation' d = V2 x y
+  where
+    x = sin (fromIntegral d * 2 * pi / 360)
+    y = cos (fromIntegral d * 2 * pi / 360)
+
+degreesToOrientation = v2ToVector3 . degreesToOrientation'
+
+-- distance -> orientation -> Location -> Location
+newLocation :: ALfloat -> V2 ALfloat -> V2 ALfloat -> V2 ALfloat
+newLocation distance orientation location = fmap (* distance) orientation + location
+
+{- | assume "north" is zero degrees
 degreesToOrientation :: Int -> Vector3 ALfloat
 degreesToOrientation d = Vector3 x 0 z
   where
     x = sin (fromIntegral d * 2 * pi / 360)
     z = cos (fromIntegral d * 2 * pi / 360)
+-}
 
 {-
               state <- get (sourceState source)
             when (state == Playing) $
                 waitWhilePlaying (theta + (pi / 60))
+                V3 has a Num instance
+
 -}
