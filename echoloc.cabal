@@ -46,6 +46,7 @@ common common-opts
     , sdl2
     , OpenAL
     , ALUT
+    , linear
 
   default-language: Haskell2010
 

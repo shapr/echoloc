@@ -11,7 +11,8 @@ import Data.Foldable hiding (elem)
 import Data.List (intersperse)
 import Data.Maybe
 import Foreign.C.Types
-import SDL hiding (Texture)
+import Linear
+import SDL hiding (Playing, Texture)
 import qualified SDL
 import SDL.Vect
 import Sound.ALUT
@@ -24,6 +25,7 @@ import Prelude hiding (any, mapM_)
 -- import Paths_sdl2 (getDataFileName)
 
 import Control.Applicative
+import Data.HashMap.Internal.Array (update)
 
 screenWidth, screenHeight :: CInt
 (screenWidth, screenHeight) = (640, 480)
@@ -69,7 +71,7 @@ main = do
         huntingBuf <- createBuffer (File "hunting.wav")
         huntingSource <- genObjectName
         buffer huntingSource $= Just huntingBuf
-
+        loopingMode huntingSource $= Looping -- this plays until you die or escape
         attackBuf <- createBuffer (File "attack.wav")
         attackSource <- genObjectName
         buffer attackSource $= Just attackBuf
@@ -149,6 +151,24 @@ main = do
                             | keyMap SDL.ScancodeZ -> (V2 0 0)
                             | otherwise -> (getPlayerPosition gameState)
                 listenerPosition $= v2ToVertex3 listenPos
+                -- monster update
+                -- are we close enough to eat the player?
+                let deathDistance = distanceV2 (getMonsterPosition gameState) (getPlayerPosition gameState)
+                let quit' = deathDistance < 1
+                when (deathDistance < 1) $ do
+                    sourcePosition attackSource $= v2ToVertex3 (getPlayerPosition gameState) -- play the sound where the player is listening!
+                    play [attackSource]
+                -- update the monster location
+                let vectorFromMonsterToPlayer = getPlayerPosition gameState - getMonsterPosition gameState
+                    vmpNorm = norm vectorFromMonsterToPlayer
+                    monsterStep = fmap (* (0.025 / vmpNorm)) vectorFromMonsterToPlayer
+                    monsterNewLocation = getMonsterPosition gameState + monsterStep
+                -- state <- get (sourceState huntingSource)
+                -- when (state /= Playing) $ do
+                --     play [huntingSource]
+                -- update the monster sound location
+                sourcePosition huntingSource $= v2ToVertex3 monsterNewLocation
+                -- stepState <- get (sourceState stepSource)
 
                 let degrees' =
                         if
@@ -156,15 +176,16 @@ main = do
                             | keyMap SDL.ScancodeRight -> getPlayerDegrees gameState + 5
                             | keyMap SDL.ScancodeX -> 0
                             | otherwise -> getPlayerDegrees gameState
-                let updatedGameState = GS listenPos (getMonsterPosition gameState) degrees'
+                let updatedGameState = GS listenPos monsterNewLocation degrees'
                 --  default listener orientation is (Vector3 0 0 (-1), Vector3 0 1 0)
                 orientation $~ \(_, v2) -> (degreesToOrientation degrees', v2)
                 state <- get (sourceState source)
                 sleep 0.01 -- 10 ms, or 100 frames per second
                 lorient <- get orientation
-                hPrint stderr $ "where are you? " <> show lpos
-                hPrint stderr $ "looking in which direction?" <> show lorient
-                unless quit (loop updatedGameState)
+                -- hPrint stderr $ "where are you? " <> show lpos
+                -- hPrint stderr $ "looking in which direction?" <> show lorient
+                hPrint stderr $ "How  far away is the monster? " <> show deathDistance
+                unless (quit || quit') (loop updatedGameState)
 
         -- end SDL loop
         let defaultGameState = GS (V2 0 0) (V2 (0 - roomRadius) 0) 0
@@ -172,6 +193,10 @@ main = do
         -- clean up SDL
         SDL.destroyWindow window
         SDL.quit
+
+-- d = √ [(x2 – x1)2 + (y2 – y1)2]
+distanceV2 :: V2 ALfloat -> V2 ALfloat -> ALfloat
+distanceV2 (V2 x1 y1) (V2 x2 y2) = sqrt . abs $ 2 * (x2 - x1) + 2 * (y2 - y1)
 
 -- X and Y only! life is hard enough already
 data GameState = GS
