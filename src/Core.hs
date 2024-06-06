@@ -157,15 +157,12 @@ main = do
                 let quit' = deathDistance < 1
                 when (deathDistance < 1) $ do
                     sourcePosition attackSource $= v2ToVertex3 (getPlayerPosition gameState) -- play the sound where the player is listening!
-                    play [attackSource]
+                    playIfNotPlaying attackSource
                 -- update the monster location
                 let vectorFromMonsterToPlayer = getPlayerPosition gameState - getMonsterPosition gameState
                     vmpNorm = norm vectorFromMonsterToPlayer
                     monsterStep = fmap (* (0.025 / vmpNorm)) vectorFromMonsterToPlayer
                     monsterNewLocation = getMonsterPosition gameState + monsterStep
-                -- state <- get (sourceState huntingSource)
-                -- when (state /= Playing) $ do
-                --     play [huntingSource]
                 -- update the monster sound location
                 sourcePosition huntingSource $= v2ToVertex3 monsterNewLocation
                 -- stepState <- get (sourceState stepSource)
