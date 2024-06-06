@@ -196,7 +196,7 @@ main = do
 
 -- d = √ [(x2 – x1)2 + (y2 – y1)2]
 distanceV2 :: V2 ALfloat -> V2 ALfloat -> ALfloat
-distanceV2 (V2 x1 y1) (V2 x2 y2) = sqrt . abs $ 2 * (x2 - x1) + 2 * (y2 - y1)
+distanceV2 (V2 x1 y1) (V2 x2 y2) = sqrt $ (x2 - x1) ^ 2 + (y2 - y1) ^ 2
 
 -- X and Y only! life is hard enough already
 data GameState = GS
