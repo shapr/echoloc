@@ -185,7 +185,7 @@ main = do
                 -- hPrint stderr $ "where are you? " <> show lpos
                 -- hPrint stderr $ "looking in which direction?" <> show lorient
                 hPrint stderr $ "How  far away is the monster? " <> show deathDistance
-                unless (quit || quit') (loop updatedGameState)
+                unless quit (loop updatedGameState)
 
         -- end SDL loop
         let defaultGameState = GS (V2 0 0) (V2 (0 - roomRadius) 0) 0
@@ -193,6 +193,11 @@ main = do
         -- clean up SDL
         SDL.destroyWindow window
         SDL.quit
+
+playIfNotPlaying :: Source -> IO ()
+playIfNotPlaying s = do
+    state <- get (sourceState s)
+    unless (state == Playing) $ play [s]
 
 -- d = √ [(x2 – x1)2 + (y2 – y1)2]
 distanceV2 :: V2 ALfloat -> V2 ALfloat -> ALfloat
