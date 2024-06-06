@@ -47,9 +47,9 @@ common common-opts
     , OpenAL
     , ALUT
     , linear
-
+    , transformers
   default-language: Haskell2010
-
+  ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -threaded -O2 -rtsopts "-with-rtsopts=-N -qg"
 
 library
   import: common-opts

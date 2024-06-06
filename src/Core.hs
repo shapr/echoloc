@@ -5,8 +5,8 @@
 
 module Core (main) where
 
-import Control.Monad (unless, when)
 import Control.Monad hiding (mapM_)
+import qualified Control.Monad.Trans.State as State
 import Data.Foldable hiding (elem)
 import Data.List (intersperse)
 import Data.Maybe
@@ -14,7 +14,7 @@ import Foreign.C.Types
 import Linear
 import SDL hiding (Playing, Texture)
 import qualified SDL
-import SDL.Vect
+
 import Sound.ALUT
 import Sound.OpenAL
 import Sound.OpenAL.AL.Listener
@@ -22,15 +22,12 @@ import System.Exit (exitFailure)
 import System.IO (hPrint, hPutStrLn, stderr)
 import Prelude hiding (any, mapM_)
 
--- import Paths_sdl2 (getDataFileName)
-
-import Control.Applicative
-import Data.HashMap.Internal.Array (update)
+import Control.Monad.IO.Class (MonadIO, liftIO)
 
 screenWidth, screenHeight :: CInt
 (screenWidth, screenHeight) = (640, 480)
 
-data Texture = Texture SDL.Texture (V2 CInt)
+data Texture = Texture !SDL.Texture !(V2 CInt)
 
 loadTexture :: SDL.Renderer -> FilePath -> IO Texture
 loadTexture r filePath = do
@@ -58,7 +55,7 @@ renderTexture r (Texture t size) xy clip theta center flips =
 main :: IO ()
 main = do
     -- Initialise ALUT and eat any ALUT-specific commandline flags.
-    withProgNameAndArgs runALUT $ \progName args -> do
+    withProgNameAndArgs runALUT $ \_progName _args -> do
         -- Create an AL buffer from the given sound file.
         slamBuf <- createBuffer (File "slam.wav")
         slamSource <- genObjectName
@@ -76,18 +73,12 @@ main = do
         attackSource <- genObjectName
         buffer attackSource $= Just attackBuf
 
-        -- Generate a single source, attach the buffer to it and start playing.
-        source <- genObjectName
-
-        -- the monster is hunting you!
-        play [huntingSource]
-
         -- Normally nothing should go wrong above, but one never knows...
         errs <- get alErrors
         unless (null errs) $ do
             hPutStrLn stderr (concat (intersperse "," [d | ALError _ d <- errs]))
             exitFailure
-        print "about to waitWhilePlaying"
+        print ("main loop starts" :: String)
 
         SDL.initialize [SDL.InitVideo]
 
@@ -123,7 +114,8 @@ main = do
         let roomRadius = 25
 
         --  begin SDL loop
-        let loop gameState = do
+        let loop = do
+                (Hunted gameState) <- State.get
                 events <- map SDL.eventPayload <$> SDL.pollEvents
                 let quit = SDL.QuitEvent `elem` events
 
@@ -139,10 +131,9 @@ main = do
                 SDL.rendererDrawColor renderer $= V4 maxBound maxBound maxBound maxBound
                 SDL.clear renderer
 
-                renderTexture renderer texture 0 Nothing Nothing Nothing Nothing
+                liftIO $ renderTexture renderer texture 0 Nothing Nothing Nothing Nothing
 
                 SDL.present renderer
-                lpos <- get listenerPosition
 
                 let listenPos :: V2 ALfloat =
                         if
@@ -151,6 +142,16 @@ main = do
                             | keyMap SDL.ScancodeZ -> (V2 0 0)
                             | otherwise -> (getPlayerPosition gameState)
                 listenerPosition $= v2ToVertex3 listenPos
+
+                let degrees' =
+                        if
+                            | keyMap SDL.ScancodeLeft -> getPlayerDegrees gameState - 2
+                            | keyMap SDL.ScancodeRight -> getPlayerDegrees gameState + 2
+                            | keyMap SDL.ScancodeX -> 0
+                            | otherwise -> getPlayerDegrees gameState
+                --  default listener orientation is (Vector3 0 0 (-1), Vector3 0 1 0)
+                orientation $~ \(_, v2) -> (degreesToOrientation degrees', v2)
+
                 -- monster update
                 -- are we close enough to eat the player?
                 let deathDistance = distanceV2 (getMonsterPosition gameState) (getPlayerPosition gameState)
@@ -165,36 +166,43 @@ main = do
                     monsterNewLocation = getMonsterPosition gameState + monsterStep
                 -- update the monster sound location
                 sourcePosition huntingSource $= v2ToVertex3 monsterNewLocation
-                -- stepState <- get (sourceState stepSource)
+                -- end monster update
+                let updatedGameState = Hunted $ GS listenPos monsterNewLocation degrees'
 
-                let degrees' =
-                        if
-                            | keyMap SDL.ScancodeLeft -> getPlayerDegrees gameState - 2
-                            | keyMap SDL.ScancodeRight -> getPlayerDegrees gameState + 2
-                            | keyMap SDL.ScancodeX -> 0
-                            | otherwise -> getPlayerDegrees gameState
-                let updatedGameState = GS listenPos monsterNewLocation degrees'
-                --  default listener orientation is (Vector3 0 0 (-1), Vector3 0 1 0)
-                orientation $~ \(_, v2) -> (degreesToOrientation degrees', v2)
-                state <- get (sourceState source)
-                sleep 0.01 -- 10 ms, or 100 frames per second
-                lorient <- get orientation
+                -- lpos <- get listenerPosition
                 -- hPrint stderr $ "where are you? " <> show lpos
+                -- lorient <- get orientation
                 -- hPrint stderr $ "looking in which direction?" <> show lorient
-                hPrint stderr $ "How  far away is the monster? " <> show deathDistance
-                unless quit (loop updatedGameState)
+                liftIO $ hPrint stderr $ "How  far away is the monster? " <> show deathDistance
+
+                sleep 0.01 -- 10 ms, or 100 frames per second
+                if quit' then State.put Died else State.put updatedGameState
+                when quit' $ playUntilDone attackSource
+                unless (quit || quit') loop
 
         -- end SDL loop
         let defaultGameState = GS (V2 0 0) (V2 (0 - roomRadius) 0) 0
-        loop defaultGameState
+        -- the monster is hunting you!
+        play [huntingSource]
+        State.evalStateT loop (Hunted defaultGameState)
         -- clean up SDL
         SDL.destroyWindow window
         SDL.quit
 
-playIfNotPlaying :: Source -> IO ()
+data GamePhase = Hunted GameState | Died | Escaped
+
+playIfNotPlaying :: (MonadIO m) => Source -> m ()
 playIfNotPlaying s = do
     state <- get (sourceState s)
     unless (state == Playing) $ play [s]
+
+playUntilDone :: (MonadIO m) => Source -> m ()
+playUntilDone s = do
+    state <- get (sourceState s)
+    when (state == Playing) $ do
+        sleep 0.1
+        playUntilDone s
+    pure ()
 
 -- d = √ [(x2 – x1)2 + (y2 – y1)2]
 distanceV2 :: V2 ALfloat -> V2 ALfloat -> ALfloat
@@ -202,9 +210,9 @@ distanceV2 (V2 x1 y1) (V2 x2 y2) = sqrt $ (x2 - x1) ^ 2 + (y2 - y1) ^ 2
 
 -- X and Y only! life is hard enough already
 data GameState = GS
-    { getPlayerPosition :: V2 ALfloat
-    , getMonsterPosition :: V2 ALfloat -- where's the monster?
-    , getPlayerDegrees :: Int -- zero is true north, 180 or -180 is true south
+    { getPlayerPosition :: !(V2 ALfloat)
+    , getMonsterPosition :: !(V2 ALfloat) -- where's the monster?
+    , getPlayerDegrees :: !Int -- zero is true north, 180 or -180 is true south
     }
     deriving (Eq, Ord, Show)
 
@@ -215,7 +223,7 @@ v2ToVector3 :: V2 ALfloat -> Vector3 ALfloat
 v2ToVector3 (V2 x z) = Vector3 x 0 (negate z) -- XXX axis flipped?
 
 vertex3ToV2 :: Vertex3 ALfloat -> V2 ALfloat
-vertex3ToV2 (Vertex3 x y z) = V2 x z
+vertex3ToV2 (Vertex3 x _ z) = V2 x z
 
 degreesToOrientation' :: Int -> V2 ALfloat
 degreesToOrientation' d = V2 x y
@@ -223,11 +231,12 @@ degreesToOrientation' d = V2 x y
     x = sin (fromIntegral d * 2 * pi / 360)
     y = cos (fromIntegral d * 2 * pi / 360)
 
+degreesToOrientation :: Int -> Vector3 ALfloat
 degreesToOrientation = v2ToVector3 . degreesToOrientation'
 
 -- distance -> orientation -> Location -> Location
 newLocation :: ALfloat -> V2 ALfloat -> V2 ALfloat -> V2 ALfloat
-newLocation distance orientation location = fmap (* distance) orientation + location
+newLocation dist orient location = fmap (* dist) orient + location
 
 {- | assume "north" is zero degrees
 degreesToOrientation :: Int -> Vector3 ALfloat
