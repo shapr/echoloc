@@ -222,8 +222,8 @@ v2ToVertex3 (V2 x z) = Vertex3 x 0 (negate z) -- XXX axis flipped?
 v2ToVector3 :: V2 ALfloat -> Vector3 ALfloat
 v2ToVector3 (V2 x z) = Vector3 x 0 (negate z) -- XXX axis flipped?
 
-vertex3ToV2 :: Vertex3 ALfloat -> V2 ALfloat
-vertex3ToV2 (Vertex3 x _ z) = V2 x z
+-- vertex3ToV2 :: Vertex3 ALfloat -> V2 ALfloat
+-- vertex3ToV2 (Vertex3 x _ z) = V2 x z
 
 degreesToOrientation' :: Int -> V2 ALfloat
 degreesToOrientation' d = V2 x y
