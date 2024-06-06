@@ -72,7 +72,7 @@ main = do
         huntingSource <- genObjectName
         buffer huntingSource $= Just huntingBuf
         loopingMode huntingSource $= Looping -- this plays until you die or escape
-        attackBuf <- createBuffer (File "attack.wav")
+        attackBuf <- createBuffer (File "wilhelm.wav")
         attackSource <- genObjectName
         buffer attackSource $= Just attackBuf
 
@@ -172,8 +172,8 @@ main = do
 
                 let degrees' =
                         if
-                            | keyMap SDL.ScancodeLeft -> getPlayerDegrees gameState - 5
-                            | keyMap SDL.ScancodeRight -> getPlayerDegrees gameState + 5
+                            | keyMap SDL.ScancodeLeft -> getPlayerDegrees gameState - 2
+                            | keyMap SDL.ScancodeRight -> getPlayerDegrees gameState + 2
                             | keyMap SDL.ScancodeX -> 0
                             | otherwise -> getPlayerDegrees gameState
                 let updatedGameState = GS listenPos monsterNewLocation degrees'
