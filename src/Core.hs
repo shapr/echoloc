@@ -80,7 +80,7 @@ main = do
             exitFailure
         print ("main loop starts" :: String)
 
-        SDL.initialize [SDL.InitVideo]
+        SDL.initializeAll
 
         SDL.HintRenderScaleQuality $= SDL.ScaleLinear
         do
@@ -94,23 +94,6 @@ main = do
                 SDL.defaultWindow{SDL.windowInitialSize = V2 screenWidth screenHeight}
         SDL.showWindow window
 
-        renderer <-
-            SDL.createRenderer
-                window
-                (-1)
-                SDL.RendererConfig
-                    { SDL.rendererType = SDL.AcceleratedVSyncRenderer
-                    , SDL.rendererTargetTexture = False
-                    }
-
-        SDL.rendererDrawColor renderer $= V4 maxBound maxBound maxBound maxBound
-
-        pressTexture <- loadTexture renderer "press.bmp"
-        upTexture <- loadTexture renderer "up.bmp"
-        downTexture <- loadTexture renderer "down.bmp"
-        leftTexture <- loadTexture renderer "left.bmp"
-        rightTexture <- loadTexture renderer "right.bmp"
-
         let roomRadius = 25
 
         --  begin SDL loop
@@ -120,20 +103,6 @@ main = do
                 let quit = SDL.QuitEvent `elem` events
 
                 keyMap <- SDL.getKeyboardState
-                let texture =
-                        if
-                            | keyMap SDL.ScancodeUp -> upTexture
-                            | keyMap SDL.ScancodeDown -> downTexture
-                            | keyMap SDL.ScancodeLeft -> leftTexture
-                            | keyMap SDL.ScancodeRight -> rightTexture
-                            | otherwise -> pressTexture
-
-                SDL.rendererDrawColor renderer $= V4 maxBound maxBound maxBound maxBound
-                SDL.clear renderer
-
-                liftIO $ renderTexture renderer texture 0 Nothing Nothing Nothing Nothing
-
-                SDL.present renderer
 
                 let listenPos :: V2 ALfloat =
                         if
